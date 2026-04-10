@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+// Add this after the imports
+useEffect(() => {
+  const script = document.createElement('script');
+  script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  script.async = true;
+  document.body.appendChild(script);
 
+  return () => {
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existingScript) existingScript.remove();
+  };
+}, []);
 const supabase = createClient(
   'https://hqdxvpucazoeapxuutkp.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZHh2cHVjYXpvZWFweHV1dGtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MTQ0NzgsImV4cCI6MjA5MTI5MDQ3OH0.aRPvkKEEZnPwsZgE2zkZRF0MH6LGyXi9tCWKayxvnFY'
@@ -17,7 +28,7 @@ export default function Home() {
   const [isPremium, setIsPremium] = useState(false);
 
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Welcome! Ask me anything about technology, coding, world events, or career advice.\n\nWin battles to earn resume certificates." }
+    { role: 'assistant', content: "Welcome! Ask me anything about technology, coding, world events, or career advice.\n\nComplete battles to earn resume certificates." }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,25 +42,25 @@ export default function Home() {
   const [currentBattle, setCurrentBattle] = useState<any>(null);
   const [battleAnswer, setBattleAnswer] = useState('');
 
-  // Load Razorpay script safely
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      const scripts = document.querySelectorAll('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-      scripts.forEach(s => s.remove());
-    };
-  }, []);
-
-  // Supabase auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
       if (data.session?.user) setActiveTab('chat');
     });
+  }, []);
+    // Load Razorpay script
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      return () => {
+        const scripts = document.querySelectorAll('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+        scripts.forEach(s => s.remove());
+      };
+    }
   }, []);
 
   const handleAuth = async () => {
@@ -93,22 +104,32 @@ export default function Home() {
   };
 
   const formatMessage = (content: string) => {
-    let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    const paragraphs = formatted.split(/\n\n|\n/).filter(p => p.trim() !== '');
+  // First, replace **bold** with <strong> tags
+  let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-    return paragraphs.map((para, index) => {
-      if (para.trim().startsWith('* ')) {
-        const bullets = para.split('\n').map((line, i) => {
-          const cleanLine = line.replace(/^\*\s*/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-          return <li key={i} className="ml-6 mb-1" dangerouslySetInnerHTML={{ __html: cleanLine }} />;
-        });
-        return <ul key={index} className="list-disc space-y-1 mb-4">{bullets}</ul>;
-      }
-      return (
-        <p key={index} className="mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: para }} />
-      );
-    });
-  };
+  // Split into paragraphs by double newlines or single newlines
+  const paragraphs = formatted.split(/\n\n|\n/).filter(p => p.trim() !== '');
+
+  return paragraphs.map((para, index) => {
+    // Handle bullet points starting with *
+    if (para.trim().startsWith('* ')) {
+      const bullets = para.split('\n').map((line, i) => {
+        const cleanLine = line.replace(/^\*\s*/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        return <li key={i} className="ml-6 mb-1" dangerouslySetInnerHTML={{ __html: cleanLine }} />;
+      });
+      return <ul key={index} className="list-disc space-y-1 mb-4">{bullets}</ul>;
+    }
+
+    // Normal paragraph
+    return (
+      <p 
+        key={index} 
+        className="mb-4 leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: para }}
+      />
+    );
+  });
+};
 
   const startBattle = (questName: string, xpReward: number) => {
     const battles = {
@@ -175,7 +196,7 @@ export default function Home() {
 
     ctx.fillStyle = '#64748b';
     ctx.font = '18px Arial';
-    ctx.fillText(`Issued to: ${user?.email || 'Valued Student'}`, 150, 380);
+    ctx.fillText(`Issued to: ${user?.email || 'Student'}`, 150, 380);
     ctx.fillText(`Date: ${new Date(cert.issued_at).toLocaleDateString()}`, 150, 420);
     ctx.fillText(`XP Earned: ${cert.xp_earned}`, 150, 460);
 
@@ -191,14 +212,16 @@ export default function Home() {
 
   const isQuestCompleted = (questName: string) => completedQuests.includes(questName);
 
+  // ... all your other functions (formatMessage, startBattle, submitBattleAnswer, downloadCertificate, isQuestCompleted)
+
   const handlePremium = () => {
     if (!user) {
       alert("Please log in first!");
       return;
     }
 
-    if (!(window as any).Razorpay) {
-      alert("Razorpay is still loading. Please wait 2-3 seconds and try again.");
+    if (typeof window === 'undefined' || !(window as any).Razorpay) {
+      alert("Razorpay is still loading. Please wait a moment and try again.");
       return;
     }
 
@@ -223,7 +246,6 @@ export default function Home() {
     const rzp = new (window as any).Razorpay(options);
     rzp.open();
   };
-
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <nav className="border-b border-cyan-500/30 bg-black/95 backdrop-blur-2xl sticky top-0 z-50 shadow-[0_0_30px_-10px] shadow-purple-500">
@@ -243,12 +265,7 @@ export default function Home() {
               <div className="text-cyan-400">LV.{level}</div>
               <div className="text-purple-400">{xp} XP</div>
               <div className="text-pink-400">🔥 {streak} STREAK</div>
-              <button 
-                onClick={handlePremium} 
-                className="bg-gradient-to-r from-cyan-400 to-purple-500 px-8 py-3 rounded-2xl text-sm font-medium hover:brightness-110 transition-all"
-              >
-                {isPremium ? "✅ Premium Active" : "Go Premium - ₹499/mo"}
-              </button>
+              <button onClick={handlePremium} className="bg-gradient-to-r from-cyan-400 to-purple-500 px-6 py-2 rounded-2xl text-sm font-medium">Go Premium</button>
               <button onClick={signOut} className="text-zinc-400 hover:text-white">EXIT ARENA</button>
             </div>
           )}
