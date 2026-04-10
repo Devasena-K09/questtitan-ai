@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execPromise = promisify(exec);
 
 const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY;
 
@@ -14,52 +10,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ reply: "API key not configured." }, { status: 400 });
     }
 
-    const lowerMessage = message.toLowerCase();
-    const hasCodeBlock = message.includes('```python') || message.includes('```');
-
-    // Improved detection for code execution
-    if (hasCodeBlock || lowerMessage.includes("run this") || lowerMessage.includes("execute") || message.trim().startsWith('print') || message.includes('for ') || message.includes('def ')) {
-
-      let code = message.trim();
-
-      // Extract code from markdown block if present
-      if (message.includes('```python')) {
-        code = message.split('```python')[1]?.split('```')[0]?.trim() || code;
-      } else if (message.includes('```')) {
-        code = message.split('```')[1]?.split('```')[0]?.trim() || code;
-      }
-
-      try {
-        const { stdout, stderr } = await execPromise(`python -c "${code.replace(/"/g, '\\"').replace(/\n/g, '; ')}"`, {
-          timeout: 4000
-        });
-
-        const output = (stdout || stderr || "Code ran successfully with no output").trim();
-
-        const reply = `✅ **Code executed successfully!**\n\n**Output:**\n\`\`\`\n${output}\n\`\`\``;
-
-        return NextResponse.json({ reply });
-
-      } catch (execError: any) {
-        const errorMsg = execError.stderr || execError.message || "Execution error";
-        const reply = `❌ **Code execution failed:**\n\`\`\`\n${errorMsg}\n\`\`\`\n\nTry fixing the indentation or syntax.`;
-        return NextResponse.json({ reply });
-      }
-    }
-
-    // Normal AI Tutor response
     const messages = [
       {
         role: "system",
-        content: `You are QuestTitan AI — a friendly, patient AI Tutor for Python and ML.
+        content: `You are QuestTitan AI — a charismatic, energetic, and highly skilled battle arena tutor.
 
-Rules:
-- Use simple, clear English.
-- Use short sentences and bullet points.
-- Be encouraging and positive.
-- Show clean code with comments.
-- Keep responses short (under 150 words).
-- If the user pastes code, you can say "I can run this for you" but the system will handle execution.`
+You teach Python, Machine Learning, JavaScript, Control Systems with AI, and other programming/engineering skills.
+
+Style:
+- Speak like an excited coach in a battle arena: energetic, motivating, fun.
+- Use short sentences. Be direct and enthusiastic.
+- Explain concepts like you're telling a story or giving battle advice.
+- When showing code, always add clear comments and explain why it works.
+- Encourage the user like "You're getting stronger!", "Great question, warrior!", "This move will help you win the next battle!".
+- Keep responses engaging but not too long (max 180 words).
+- Never use boring lists unless absolutely necessary.
+- End with one helpful follow-up question or challenge only if it fits naturally.
+
+Goal: Make the user feel like they're training for an epic battle while actually learning real skills.`
       },
       ...history.slice(-10).map((msg: any) => ({
         role: msg.role === 'user' ? 'user' : 'assistant',
@@ -68,7 +36,7 @@ Rules:
       { role: "user", content: message }
     ];
 
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${GROQ_API_KEY}`,
@@ -77,14 +45,14 @@ Rules:
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: messages,
-        temperature: 0.65,
+        temperature: 0.75,
         max_tokens: 650,
       }),
     });
 
-    if (!groqResponse.ok) throw new Error("Groq error");
+    if (!response.ok) throw new Error("API error");
 
-    const data = await groqResponse.json();
+    const data = await response.json();
     const reply = data.choices[0].message.content;
 
     return NextResponse.json({ reply });
@@ -92,7 +60,7 @@ Rules:
   } catch (error) {
     console.error(error);
     return NextResponse.json({
-      reply: "Sorry, I had trouble processing that. Please try again."
+      reply: "The arena is a bit chaotic right now. Ask me again!"
     }, { status: 500 });
   }
 }
