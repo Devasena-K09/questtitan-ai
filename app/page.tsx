@@ -16,7 +16,10 @@ export default function Home() {
   const [isLogin, setIsLogin] = useState(true);
 
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Welcome back to the Arena!\n\nAsk me anything about technology, Python, ML, or Control Systems. Battle to earn certificates for your resume." }
+    { 
+      role: 'assistant', 
+      content: "Hello! I'm your versatile AI Tutor at QuestTitan AI.\n\nI can answer any question — technology, world events, career advice, coding, or general knowledge.\n\nAsk me anything!" 
+    }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +28,7 @@ export default function Home() {
   const [level, setLevel] = useState(7);
   const [streak, setStreak] = useState(12);
   const [completedQuests, setCompletedQuests] = useState<string[]>([]);
-  const [certificates, setCertificates] = useState<string[]>([]);
+  const [certificates, setCertificates] = useState<any[]>([]);
 
   const [currentBattle, setCurrentBattle] = useState<any>(null);
   const [battleAnswer, setBattleAnswer] = useState('');
@@ -44,7 +47,7 @@ export default function Home() {
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) alert(error.message);
-      else alert("Check your email to confirm!");
+      else alert("Check your email to confirm your account!");
     }
   };
 
@@ -72,7 +75,7 @@ export default function Home() {
       const data = await response.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "The arena is chaotic right now. Ask me again!" }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: "The arena connection is unstable. Ask me again!" }]);
     }
     setIsLoading(false);
   };
@@ -95,7 +98,7 @@ export default function Home() {
   const startBattle = (questName: string, xpReward: number) => {
     const battles = {
       "Print your first message": { question: "Write Python code that prints exactly: 'Hello Arena!'", answer: "print", reward: xpReward },
-      "Master For Loops": { question: "Write a for loop that prints numbers 1 to 5, each on a new line.", answer: "for", reward: xpReward },
+      "Master For Loops": { question: "Write a for loop that prints numbers from 1 to 5, each on a new line.", answer: "for", reward: xpReward },
       "Build a simple calculator": { question: "Write a Python function named add that returns the sum of two numbers.", answer: "def", reward: xpReward }
     };
 
@@ -113,13 +116,21 @@ export default function Home() {
       const newXp = xp + currentBattle.reward;
       setXp(newXp);
       setCompletedQuests(prev => [...prev, currentBattle.name]);
+
+      // Save certificate to Supabase
+      const certId = 'CERT-' + Date.now().toString().slice(-8);
+      supabase.from('certificates').insert({
+        user_id: user.id,
+        certificate_id: certId,
+        title: currentBattle.name,
+        skills: "Python Programming",
+        issued_at: new Date().toISOString(),
+        xp_earned: currentBattle.reward
+      });
+
       if (newXp >= level * 300) setLevel(prev => prev + 1);
 
-      // Add certificate
-      const certificateName = `${currentBattle.name} - Battle Winner`;
-      setCertificates(prev => [...prev, certificateName]);
-
-      alert(`🏆 BATTLE WON!\n\nYou survived "${currentBattle.name}"\n+${currentBattle.reward} XP\n\nCertificate added to your profile!`);
+      alert(`🏆 BATTLE WON!\n\nYou survived "${currentBattle.name}"\n+${currentBattle.reward} XP\n\nCertificate #${certId} saved!`);
       setCurrentBattle(null);
       setBattleAnswer('');
     } else {
@@ -178,13 +189,14 @@ export default function Home() {
           </div>
         </div>
       ) : activeTab === 'chat' ? (
+        // Open AI Tutor
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 max-w-7xl mx-auto px-10 py-12">
           <div className="lg:col-span-5">
             <h1 className="text-6xl font-bold tracking-tighter leading-tight mb-10 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               AI TUTOR ARENA
             </h1>
             <p className="text-2xl text-zinc-400">
-              Ask anything. Get hints. Prepare for battles.
+              Ask me anything — technology, world events, career advice, coding, or general knowledge.
             </p>
           </div>
 
@@ -194,7 +206,7 @@ export default function Home() {
                 <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-3xl flex items-center justify-center text-4xl shadow-[0_0_20px] shadow-cyan-400">🤖</div>
                 <div>
                   <div className="font-bold text-2xl">AI TUTOR</div>
-                  <div className="text-cyan-400 text-sm">LIVE • MULTI-SKILL • CODE EXECUTION</div>
+                  <div className="text-cyan-400 text-sm">Open • Versatile • Always Ready</div>
                 </div>
               </div>
 
@@ -206,7 +218,7 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
-                {isLoading && <div className="bg-black p-7 rounded-3xl text-cyan-400">Calculating response...</div>}
+                {isLoading && <div className="bg-black p-7 rounded-3xl text-cyan-400">Thinking...</div>}
               </div>
 
               <div className="p-8 border-t border-cyan-500/30 bg-black">
@@ -215,7 +227,7 @@ export default function Home() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask anything about technology..."
+                    placeholder="Ask anything about technology or the world..."
                     className="flex-1 bg-black border border-cyan-500/50 rounded-3xl px-8 py-5 focus:border-purple-500"
                   />
                   <button onClick={handleSend} disabled={isLoading || !input.trim()} className="bg-gradient-to-r from-cyan-400 to-purple-500 px-14 rounded-3xl font-bold disabled:opacity-50">
@@ -227,6 +239,7 @@ export default function Home() {
           </div>
         </div>
       ) : activeTab === 'quests' ? (
+        // Battle Arena
         <div className="max-w-7xl mx-auto px-10 py-12">
           <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">BATTLE ARENA</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -257,25 +270,26 @@ export default function Home() {
             </div>
           </div>
         </div>
-      ) : activeTab === 'certificates' ? (
+      ) : (
+        // Certificates Tab
         <div className="max-w-7xl mx-auto px-10 py-12">
           <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">YOUR CERTIFICATES</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {certificates.length > 0 ? certificates.map((cert, index) => (
               <div key={index} className="bg-zinc-900 border border-purple-500/30 rounded-3xl p-10 text-center">
                 <div className="text-6xl mb-6">🏆</div>
-                <h3 className="text-2xl font-bold mb-2">{cert}</h3>
-                <p className="text-zinc-400">Awarded for battle victory</p>
+                <h3 className="text-2xl font-bold mb-2">{cert.title}</h3>
+                <p className="text-zinc-400">Issued on {new Date(cert.issued_at).toLocaleDateString()}</p>
                 <button className="mt-6 bg-gradient-to-r from-cyan-400 to-purple-500 px-10 py-3 rounded-2xl text-sm font-medium">Download Certificate</button>
               </div>
             )) : (
               <div className="col-span-2 text-center text-zinc-400 py-20">
-                No certificates yet. Win battles to earn them for your resume!
+                No certificates yet. Win battles to earn verifiable certificates for your resume!
               </div>
             )}
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Battle Modal */}
       {currentBattle && (
