@@ -9,7 +9,7 @@ const supabase = createClient(
 );
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'auth' | 'chat' | 'quests' | 'certificates'>('auth');
+  const [activeTab, setActiveTab] = useState<'auth' | 'chat' | 'courses' | 'quests' | 'certificates'>('auth');
   const [user, setUser] = useState<any>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,7 +17,7 @@ export default function Home() {
   const [isPremium, setIsPremium] = useState(false);
 
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Welcome! Ask me anything about technology, coding, world events, or career advice.\n\nWin battles to earn resume certificates." }
+    { role: 'assistant', content: "Welcome! Ask me anything. Complete battles to earn certificates. Browse courses below." }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,20 +31,21 @@ export default function Home() {
   const [currentBattle, setCurrentBattle] = useState<any>(null);
   const [battleAnswer, setBattleAnswer] = useState('');
 
-  // Load Razorpay script safely
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [completedLessons, setCompletedLessons] = useState<string[]>([]);
+
+  // Razorpay script
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     document.body.appendChild(script);
-
     return () => {
       const scripts = document.querySelectorAll('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
       scripts.forEach(s => s.remove());
     };
   }, []);
 
-  // Supabase auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
@@ -70,7 +71,6 @@ export default function Home() {
 
   const handleSend = async () => {
     if (!input.trim()) return;
-
     const userMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
@@ -83,7 +83,6 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentInput, history: messages }),
       });
-
       const data = await response.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (error) {
@@ -95,7 +94,6 @@ export default function Home() {
   const formatMessage = (content: string) => {
     let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     const paragraphs = formatted.split(/\n\n|\n/).filter(p => p.trim() !== '');
-
     return paragraphs.map((para, index) => {
       if (para.trim().startsWith('* ')) {
         const bullets = para.split('\n').map((line, i) => {
@@ -104,9 +102,7 @@ export default function Home() {
         });
         return <ul key={index} className="list-disc space-y-1 mb-4">{bullets}</ul>;
       }
-      return (
-        <p key={index} className="mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: para }} />
-      );
+      return <p key={index} className="mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: para }} />;
     });
   };
 
@@ -126,7 +122,6 @@ export default function Home() {
 
   const submitBattleAnswer = () => {
     if (!currentBattle) return;
-
     if (battleAnswer.toLowerCase().includes(currentBattle.answer)) {
       const newXp = xp + currentBattle.reward;
       setXp(newXp);
@@ -154,34 +149,18 @@ export default function Home() {
 
   const downloadCertificate = (cert: any) => {
     const canvas = document.createElement('canvas');
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = 800; canvas.height = 600;
     const ctx = canvas.getContext('2d')!;
 
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, 800, 600);
-
-    ctx.fillStyle = '#22d3ee';
-    ctx.font = 'bold 48px Arial';
-    ctx.fillText('QUESTTITAN AI', 200, 150);
-
-    ctx.fillStyle = '#a855f7';
-    ctx.font = '30px Arial';
-    ctx.fillText('CERTIFICATE OF ACHIEVEMENT', 180, 220);
-
-    ctx.fillStyle = '#e0e7ff';
-    ctx.font = '24px Arial';
-    ctx.fillText(cert.title, 150, 300);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '18px Arial';
+    ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, 800, 600);
+    ctx.fillStyle = '#22d3ee'; ctx.font = 'bold 48px Arial'; ctx.fillText('QUESTTITAN AI', 200, 150);
+    ctx.fillStyle = '#a855f7'; ctx.font = '30px Arial'; ctx.fillText('CERTIFICATE OF ACHIEVEMENT', 180, 220);
+    ctx.fillStyle = '#e0e7ff'; ctx.font = '24px Arial'; ctx.fillText(cert.title, 150, 300);
+    ctx.fillStyle = '#64748b'; ctx.font = '18px Arial';
     ctx.fillText(`Issued to: ${user?.email || 'Valued Student'}`, 150, 380);
     ctx.fillText(`Date: ${new Date(cert.issued_at).toLocaleDateString()}`, 150, 420);
     ctx.fillText(`XP Earned: ${cert.xp_earned}`, 150, 460);
-
-    ctx.fillStyle = '#22d3ee';
-    ctx.font = 'bold 20px Arial';
-    ctx.fillText('Verified by QuestTitan AI', 250, 520);
+    ctx.fillStyle = '#22d3ee'; ctx.font = 'bold 20px Arial'; ctx.fillText('Verified by QuestTitan AI', 250, 520);
 
     const link = document.createElement('a');
     link.download = `${cert.title.replace(/ /g, '_')}_Certificate.png`;
@@ -196,9 +175,8 @@ export default function Home() {
       alert("Please log in first!");
       return;
     }
-
     if (!(window as any).Razorpay) {
-      alert("Razorpay is still loading. Please wait 2-3 seconds and try again.");
+      alert("Razorpay is still loading. Please wait a moment and try again.");
       return;
     }
 
@@ -207,31 +185,44 @@ export default function Home() {
       amount: 49900,
       currency: "INR",
       name: "QuestTitan AI",
-      description: "Premium Monthly Subscription - Unlock Full Courses & Advanced Battles",
+      description: "Premium Monthly - Full Courses + Advanced Battles",
       handler: function (response: any) {
-        alert(`🎉 Payment Successful!\n\nPayment ID: ${response.razorpay_payment_id}\n\nThank you! Premium is now active.`);
+        alert(`🎉 Payment Successful!\n\nPayment ID: ${response.razorpay_payment_id}\n\nPremium activated! Full courses unlocked.`);
         setIsPremium(true);
       },
-      prefill: {
-        email: user.email,
-      },
-      theme: {
-        color: "#22d3ee",
-      },
+      prefill: { email: user.email },
+      theme: { color: "#22d3ee" },
     };
 
     const rzp = new (window as any).Razorpay(options);
     rzp.open();
   };
 
+  const markLessonComplete = (lessonTitle: string) => {
+    if (!completedLessons.includes(lessonTitle)) {
+      setCompletedLessons(prev => [...prev, lessonTitle]);
+      alert(`✅ Lesson "${lessonTitle}" marked as complete!`);
+    }
+  };
+
+  const courses = [
+    { id: 'python', title: 'Python Mastery', emoji: '🐍', desc: 'From basics to advanced Python with projects', lessons: 8, free: true },
+    { id: 'ml', title: 'Machine Learning', emoji: '🧠', desc: 'Neural networks, models & real applications', lessons: 10, free: false },
+    { id: 'ai', title: 'Artificial Intelligence', emoji: '🤖', desc: 'Core AI concepts and modern techniques', lessons: 9, free: false },
+    { id: 'java', title: 'Java Programming', emoji: '☕', desc: 'Object-oriented programming & backend', lessons: 7, free: false },
+    { id: 'c', title: 'C Programming', emoji: '⚙️', desc: 'Low-level programming & systems', lessons: 6, free: false },
+    { id: 'react', title: 'React & Frontend', emoji: '⚛️', desc: 'Modern web development with React', lessons: 8, free: false },
+    { id: 'control', title: 'AI in Control Systems', emoji: '🔌', desc: 'For Electrical & Electronics Engineers', lessons: 7, free: false },
+    { id: 'cyber', title: 'Cybersecurity', emoji: '🛡️', desc: 'Ethical hacking & security fundamentals', lessons: 9, free: false },
+  ];
+
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
+      {/* Navbar - same as before */}
       <nav className="border-b border-cyan-500/30 bg-black/95 backdrop-blur-2xl sticky top-0 z-50 shadow-[0_0_30px_-10px] shadow-purple-500">
         <div className="max-w-7xl mx-auto px-10 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-3xl shadow-[0_0_25px_-5px] shadow-purple-500">
-              ⚔️
-            </div>
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-3xl shadow-[0_0_25px_-5px] shadow-purple-500">⚔️</div>
             <div>
               <h1 className="text-4xl font-bold tracking-tighter bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">QUESTTITAN</h1>
               <p className="text-xs text-purple-400 tracking-[3px] -mt-1">BATTLE • LEARN • LEVEL UP</p>
@@ -243,10 +234,7 @@ export default function Home() {
               <div className="text-cyan-400">LV.{level}</div>
               <div className="text-purple-400">{xp} XP</div>
               <div className="text-pink-400">🔥 {streak} STREAK</div>
-              <button 
-                onClick={handlePremium} 
-                className="bg-gradient-to-r from-cyan-400 to-purple-500 px-8 py-3 rounded-2xl text-sm font-medium hover:brightness-110 transition-all"
-              >
+              <button onClick={handlePremium} className="bg-gradient-to-r from-cyan-400 to-purple-500 px-8 py-3 rounded-2xl text-sm font-medium hover:brightness-110 transition-all">
                 {isPremium ? "✅ Premium Active" : "Go Premium - ₹499/mo"}
               </button>
               <button onClick={signOut} className="text-zinc-400 hover:text-white">EXIT ARENA</button>
@@ -257,6 +245,7 @@ export default function Home() {
         {user && (
           <div className="max-w-7xl mx-auto px-10 flex border-t border-cyan-500/20">
             <button onClick={() => setActiveTab('chat')} className={`px-12 py-4 font-medium transition-all border-b-2 ${activeTab === 'chat' ? 'border-cyan-400 text-white' : 'border-transparent text-zinc-400 hover:text-white'}`}>AI TUTOR</button>
+            <button onClick={() => setActiveTab('courses')} className={`px-12 py-4 font-medium transition-all border-b-2 ${activeTab === 'courses' ? 'border-cyan-400 text-white' : 'border-transparent text-zinc-400 hover:text-white'}`}>COURSES</button>
             <button onClick={() => setActiveTab('quests')} className={`px-12 py-4 font-medium transition-all border-b-2 ${activeTab === 'quests' ? 'border-cyan-400 text-white' : 'border-transparent text-zinc-400 hover:text-white'}`}>BATTLE ARENA</button>
             <button onClick={() => setActiveTab('certificates')} className={`px-12 py-4 font-medium transition-all border-b-2 ${activeTab === 'certificates' ? 'border-cyan-400 text-white' : 'border-transparent text-zinc-400 hover:text-white'}`}>CERTIFICATES</button>
           </div>
@@ -269,26 +258,20 @@ export default function Home() {
             <div className="text-7xl mb-8">⚔️</div>
             <h2 className="text-4xl font-bold mb-3 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">ENTER THE ARENA</h2>
             <p className="text-zinc-400 mb-10">Battle your way to mastery</p>
-
             <input type="email" placeholder="EMAIL" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black border border-purple-500/50 rounded-2xl px-8 py-4 mb-5 text-center" />
             <input type="password" placeholder="PASSWORD" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black border border-purple-500/50 rounded-2xl px-8 py-4 mb-10 text-center" />
-
             <button onClick={handleAuth} className="w-full bg-gradient-to-r from-cyan-400 to-purple-500 py-5 rounded-2xl font-bold text-lg tracking-wider mb-6">
               {isLogin ? 'ENTER ARENA' : 'CREATE LEGEND'}
             </button>
           </div>
         </div>
       ) : activeTab === 'chat' ? (
+        // AI Tutor Tab - keep as is (your working version)
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 max-w-7xl mx-auto px-10 py-12">
           <div className="lg:col-span-5">
-            <h1 className="text-6xl font-bold tracking-tighter leading-tight mb-10 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              AI TUTOR ARENA
-            </h1>
-            <p className="text-2xl text-zinc-400">
-              Ask anything about technology, coding, or the world.
-            </p>
+            <h1 className="text-6xl font-bold tracking-tighter leading-tight mb-10 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">AI TUTOR ARENA</h1>
+            <p className="text-2xl text-zinc-400">Ask me anything about technology, coding, or the world.</p>
           </div>
-
           <div className="lg:col-span-7">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-3xl h-[760px] flex flex-col overflow-hidden shadow-[0_0_40px_-10px] shadow-purple-500">
               <div className="px-10 py-7 border-b border-cyan-500/30 flex items-center gap-5 bg-black">
@@ -298,7 +281,6 @@ export default function Home() {
                   <div className="text-cyan-400 text-sm">Open • Versatile • Always Ready</div>
                 </div>
               </div>
-
               <div className="flex-1 overflow-y-auto p-10 space-y-9">
                 {messages.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -309,25 +291,54 @@ export default function Home() {
                 ))}
                 {isLoading && <div className="bg-black p-7 rounded-3xl text-cyan-400">Thinking...</div>}
               </div>
-
               <div className="p-8 border-t border-cyan-500/30 bg-black">
                 <div className="flex gap-4">
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask anything about technology..."
-                    className="flex-1 bg-black border border-cyan-500/50 rounded-3xl px-8 py-5 focus:border-purple-500"
-                  />
-                  <button onClick={handleSend} disabled={isLoading || !input.trim()} className="bg-gradient-to-r from-cyan-400 to-purple-500 px-14 rounded-3xl font-bold disabled:opacity-50">
-                    SEND
-                  </button>
+                  <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask anything about technology..." className="flex-1 bg-black border border-cyan-500/50 rounded-3xl px-8 py-5 focus:border-purple-500" />
+                  <button onClick={handleSend} disabled={isLoading || !input.trim()} className="bg-gradient-to-r from-cyan-400 to-purple-500 px-14 rounded-3xl font-bold disabled:opacity-50">SEND</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      ) : activeTab === 'courses' ? (
+        // Courses Tab with many courses
+        <div className="max-w-7xl mx-auto px-10 py-12">
+          <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">AVAILABLE COURSES</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {courses.map((course) => (
+              <div key={course.id} className="bg-zinc-900 border border-purple-500/30 rounded-3xl p-8 hover:border-cyan-400 transition-all group">
+                <div className="text-5xl mb-6">{course.emoji}</div>
+                <h3 className="text-2xl font-bold mb-3">{course.title}</h3>
+                <p className="text-zinc-400 mb-8">{course.desc}</p>
+                <div className="text-sm text-cyan-400 mb-6">{course.lessons} lessons</div>
+                
+                <button 
+                  onClick={() => {
+                    if (course.free || isPremium) {
+                      setSelectedCourse(course.id);
+                      alert(`Opening ${course.title}... (Full content coming in next update)`);
+                    } else {
+                      handlePremium();
+                    }
+                  }}
+                  className={`w-full py-4 rounded-2xl font-medium ${course.free || isPremium ? 'bg-gradient-to-r from-cyan-400 to-purple-500' : 'bg-zinc-800 border border-purple-500/50 text-zinc-400'}`}
+                >
+                  {course.free || isPremium ? 'Start Course' : 'Unlock with Premium'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {!isPremium && (
+            <div className="mt-16 text-center">
+              <p className="text-zinc-400">Upgrade to Premium to unlock all advanced courses with full lessons, projects, and certificates.</p>
+              <button onClick={handlePremium} className="mt-6 bg-gradient-to-r from-cyan-400 to-purple-500 px-12 py-5 rounded-3xl text-lg font-medium">Go Premium - ₹499/month</button>
+            </div>
+          )}
+        </div>
       ) : activeTab === 'quests' ? (
+        // Battle Arena (unchanged)
         <div className="max-w-7xl mx-auto px-10 py-12">
           <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">BATTLE ARENA</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -345,11 +356,7 @@ export default function Home() {
                       <p className="font-medium">{q.title}</p>
                       <p className="text-sm text-zinc-500">+{q.xp} XP</p>
                     </div>
-                    <button 
-                      onClick={() => startBattle(q.title, q.xp)}
-                      disabled={isQuestCompleted(q.title)}
-                      className={`px-10 py-3.5 rounded-2xl text-sm font-medium ${isQuestCompleted(q.title) ? 'bg-emerald-600' : 'bg-gradient-to-r from-cyan-400 to-purple-500 hover:brightness-110'}`}
-                    >
+                    <button onClick={() => startBattle(q.title, q.xp)} disabled={isQuestCompleted(q.title)} className={`px-10 py-3.5 rounded-2xl text-sm font-medium ${isQuestCompleted(q.title) ? 'bg-emerald-600' : 'bg-gradient-to-r from-cyan-400 to-purple-500 hover:brightness-110'}`}>
                       {isQuestCompleted(q.title) ? '✓ WON' : 'ENTER BATTLE'}
                     </button>
                   </div>
@@ -359,6 +366,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
+        // Certificates Tab
         <div className="max-w-7xl mx-auto px-10 py-12">
           <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">YOUR CERTIFICATES</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -384,15 +392,7 @@ export default function Home() {
           <div className="bg-zinc-900 border border-cyan-400 rounded-3xl p-12 max-w-lg w-full text-center">
             <h3 className="text-3xl font-bold mb-6 text-cyan-400">BATTLE: {currentBattle.name}</h3>
             <p className="text-xl mb-8">{currentBattle.question}</p>
-            
-            <input
-              type="text"
-              value={battleAnswer}
-              onChange={(e) => setBattleAnswer(e.target.value)}
-              placeholder="Type your code or answer..."
-              className="w-full bg-black border border-cyan-500 rounded-2xl px-8 py-5 mb-8 text-center"
-            />
-
+            <input type="text" value={battleAnswer} onChange={(e) => setBattleAnswer(e.target.value)} placeholder="Type your code or answer..." className="w-full bg-black border border-cyan-500 rounded-2xl px-8 py-5 mb-8 text-center" />
             <div className="flex gap-4">
               <button onClick={() => setCurrentBattle(null)} className="flex-1 py-4 rounded-2xl border border-zinc-700 text-zinc-400">Leave Battle</button>
               <button onClick={submitBattleAnswer} className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-cyan-400 to-purple-500 font-bold">SUBMIT & SURVIVE</button>
