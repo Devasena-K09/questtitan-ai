@@ -1,12 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { useState, useEffect } from 'react';
 
 type Lesson = {
   title: string;
@@ -61,14 +57,38 @@ export default function Home() {
     };
   }, []);
 
+  // Load user session - dynamic import
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) setActiveTab('chat');
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error("Supabase env vars missing");
+        return;
+      }
+
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+      supabase.auth.getSession().then(({ data }) => {
+        setUser(data.session?.user ?? null);
+        if (data.session?.user) setActiveTab('chat');
+      }).catch((err) => console.error("Session error:", err));
     });
   }, []);
 
   const handleAuth = async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      alert("Supabase configuration error.");
+      return;
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) alert(error.message);
@@ -80,6 +100,13 @@ export default function Home() {
   };
 
   const signOut = async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) return;
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     await supabase.auth.signOut();
     setActiveTab('auth');
   };
@@ -264,7 +291,7 @@ export default function Home() {
         )}
       </nav>
 
-      {/* All other tabs are now properly closed and clean */}
+      {/* Auth Screen */}
       {!user ? (
         <div className="flex items-center justify-center min-h-[85vh]">
           <div className="bg-zinc-900 border border-purple-500/30 rounded-3xl p-16 w-full max-w-md text-center shadow-[0_0_60px_-20px] shadow-purple-500">
@@ -279,6 +306,7 @@ export default function Home() {
           </div>
         </div>
       ) : activeTab === 'chat' ? (
+        // AI Tutor Tab
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 max-w-7xl mx-auto px-10 py-12">
           <div className="lg:col-span-5">
             <h1 className="text-6xl font-bold tracking-tighter leading-tight mb-10 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_#22d3ee]">AI TUTOR ARENA</h1>
@@ -313,6 +341,7 @@ export default function Home() {
           </div>
         </div>
       ) : activeTab === 'courses' ? (
+        // Courses Tab
         <div className="max-w-7xl mx-auto px-10 py-12">
           <h2 className="text-5xl font-bold tracking-tighter mb-12 text-center bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_#22d3ee]">PREMIUM LEARNING PATHS</h2>
 
